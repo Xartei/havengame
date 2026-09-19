@@ -5,6 +5,8 @@
 [ext_resource type="Texture2D" uid="uid://c20sn8tp6hw8d" path="res://assets/moving/court.png" id="3_1bvp3"]
 [ext_resource type="Texture2D" uid="uid://570ya5s4ybdt" path="res://assets/moving/ball.png" id="3_h2yge"]
 [ext_resource type="Texture2D" uid="uid://cqi8aeapl1dtk" path="res://assets/moving/hoops.png" id="4_lquwl"]
+[ext_resource type="Script" uid="uid://ccuu1rk6lee0n" path="res://src/score.gd" id="5_score"]
+[ext_resource type="Script" uid="uid://gsfnlsjretws" path="res://src/hud.gd" id="6_hud"]
 
 [sub_resource type="GDScript" id="GDScript_1bvp3"]
 resource_name = "playerMovement"
@@ -162,7 +164,16 @@ size = Vector2(1162, 138)
 size = Vector2(207, 537)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_lquwl"]
-size = Vector2(158, 20)
+size = Vector2(158, 82)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_rim"]
+size = Vector2(34, 30)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_rlaii"]
+size = Vector2(10, 43)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_5mrjc"]
+size = Vector2(6, 42)
 
 [sub_resource type="GDScript" id="GDScript_7mycd"]
 resource_name = "ballPhysics"
@@ -364,7 +375,7 @@ collision_layer = 2
 collision_mask = 2
 
 [node name="pole" type="CollisionShape2D" parent="arena/hoops/rightpole" unique_id=1829500989]
-position = Vector2(897, 11)
+position = Vector2(897, -20)
 shape = SubResource("RectangleShape2D_lquwl")
 
 [node name="leftpole" type="StaticBody2D" parent="arena/hoops" unique_id=1447261400]
@@ -374,6 +385,39 @@ collision_mask = 2
 [node name="pole" type="CollisionShape2D" parent="arena/hoops/leftpole" unique_id=587805069]
 position = Vector2(1794, 22)
 shape = SubResource("RectangleShape2D_lquwl")
+
+[node name="leftHoop" type="Area2D" parent="arena/hoops" unique_id=900000101]
+position = Vector2(36, 0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("5_score")
+
+[node name="shape" type="CollisionShape2D" parent="arena/hoops/leftHoop" unique_id=900000102]
+position = Vector2(6, 13)
+shape = SubResource("RectangleShape2D_rim")
+
+[node name="borders" type="StaticBody2D" parent="arena/hoops/leftHoop" unique_id=827203318]
+position = Vector2(10, 7)
+collision_layer = 3
+collision_mask = 0
+
+[node name="left" type="CollisionShape2D" parent="arena/hoops/leftHoop/borders" unique_id=1433134636]
+position = Vector2(-35, 6)
+shape = SubResource("RectangleShape2D_rlaii")
+
+[node name="right" type="CollisionShape2D" parent="arena/hoops/leftHoop/borders" unique_id=1237902750]
+position = Vector2(23, 6)
+shape = SubResource("RectangleShape2D_5mrjc")
+
+[node name="rightHoop" type="Area2D" parent="arena/hoops" unique_id=900000103]
+position = Vector2(771, 0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("5_score")
+team = 2
+
+[node name="shape" type="CollisionShape2D" parent="arena/hoops/rightHoop" unique_id=900000104]
+shape = SubResource("RectangleShape2D_rim")
 
 [node name="ball" type="RigidBody2D" parent="." unique_id=1628818008 groups=["ball"]]
 visibility_layer = 3
@@ -397,5 +441,16 @@ metadata/_edit_group_ = true
 offset = Vector2(960, 540)
 
 [node name="pole" type="CollisionShape2D" parent="." unique_id=1740851300]
-position = Vector2(454, 586)
+position = Vector2(448, 561)
 shape = SubResource("RectangleShape2D_lquwl")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=900000105]
+
+[node name="scoreboard" type="Label" parent="HUD" unique_id=900000106]
+offset_left = 24.0
+offset_top = 16.0
+offset_right = 420.0
+offset_bottom = 84.0
+theme_override_font_sizes/font_size = 48
+text = "T1  0   :   0  T2"
+script = ExtResource("6_hud")
