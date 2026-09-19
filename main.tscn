@@ -1,0 +1,346 @@
+[gd_scene format=3 uid="uid://cw4ocui3p4m23"]
+
+[ext_resource type="Texture2D" uid="uid://xu4fcw0uo87k" path="res://assets/moving/lebron.png" id="1_1bvp3"]
+[ext_resource type="Texture2D" uid="uid://bbokbkfj5nhxl" path="res://assets/moving/shoe.png" id="2_lquwl"]
+[ext_resource type="Texture2D" uid="uid://c20sn8tp6hw8d" path="res://assets/moving/court.png" id="3_1bvp3"]
+[ext_resource type="Texture2D" uid="uid://570ya5s4ybdt" path="res://assets/moving/ball.png" id="3_h2yge"]
+
+[sub_resource type="GDScript" id="GDScript_1bvp3"]
+resource_name = "playerMovement"
+script/source = "extends CharacterBody2D
+
+const SPEED := 300.0
+const JUMP_VELOCITY := -320.0
+
+@export var swing_angle := -90.0     # max sweep to the left, in degrees
+@export var swing_speed := 12.0     # rad/s while ui_accept is held
+@export var return_speed := 18.0    # rad/s while returning to rest
+@export var kick_launch := 0.2      # extra pop; total launch multiplier is (1.0 + kick_launch)
+@export var kick_friction := 0.3    # tangential slip dragged along
+@export var kick_charge := true     # scale kick force by how far the swing has travelled
+@export var kick_charge_min := 0.0  # force fraction at 0 degrees (0 = linear from nothing)
+var base_gravity = ProjectSettings.get_setting(\"physics/2d/default_gravity\") # gravity
+var gravity = base_gravity
+
+@onready var kick_pivot: Node2D = $kickPivot
+@onready var shoe_area: Area2D = $kickPivot/shoeArea
+@onready var shoe_polygon: CollisionPolygon2D = $kickPivot/shoeArea/shape
+
+var _prev_rot := 0.0
+var _omega := 0.0
+
+
+func _physics_process(delta: float) -> void:
+	# Add the gravity.
+	if not is_on_floor():
+		velocity += Vector2.DOWN * gravity * delta
+		if Input.is_action_pressed(\"up\"):
+			gravity = base_gravity * 0.2
+		elif Input.is_action_pressed(\"down\"):
+			gravity = base_gravity * 2 # yeah fall faster with down i always hated you couldnt do this in games loñ
+		else:
+			gravity = base_gravity
+
+	# handle jump (press and hold).
+	if Input.is_action_just_pressed(\"up\") and is_on_floor():
+		velocity.y = JUMP_VELOCITY
+		gravity = base_gravity
+
+	# Get the input direction and handle the movement/deceleration.
+	var direction := Input.get_axis(\"left\", \"right\")
+	if direction:
+		velocity.x = direction * SPEED
+	else:
+		velocity.x = move_toward(velocity.x, 0, SPEED)
+
+	move_and_slide()
+
+	# Press and hold ui_accept to keep sweeping the shoe left; release to return.
+	_swing(delta)
+
+	# Angular velocity of the shoe swing (rad/s) for this frame.
+	_omega = (kick_pivot.rotation - _prev_rot) / delta
+	_prev_rot = kick_pivot.rotation
+
+	# Kick anything the shoe polygon overlaps while the shoe is actually moving.
+	# Tested directly against the shoe polygon so the result is frame-accurate;
+	# Area2D.get_overlapping_bodies() is one physics tick stale and misses fast sweeps.
+	if absf(_omega) > 0.01:
+		for body in get_tree().get_nodes_in_group(\"ball\"):
+			if body is RigidBody2D and _shoe_overlaps(body as Node2D):
+				_kick(body as RigidBody2D)
+
+
+func _swing(delta: float) -> void:
+	var holding := Input.is_action_pressed(\"ui_accept\")
+	var target := deg_to_rad(-swing_angle) if holding else 0.0
+	var speed := swing_speed if holding else return_speed
+	kick_pivot.rotation = move_toward(kick_pivot.rotation, target, speed * delta)
+
+
+func _kick(ball: RigidBody2D) -> void:
+	# Surface velocity of the shoe at the contact: v = omega x r
+	var r := ball.global_position - kick_pivot.global_position
+	var v_shoe := Vector2(-_omega * r.y, _omega * r.x)
+
+	var n := _shoe_contact_normal(ball.global_position)
+	if n == Vector2.ZERO:
+		return
+
+	var v_rel := ball.linear_velocity - v_shoe
+	var v_n := v_rel.dot(n)
+	if v_n >= 0.0:
+		return
+
+	ball.linear_velocity -= _kick_power() * (1.0 + kick_launch) * v_n * n
+	var v_t := v_rel - v_n * n
+	ball.linear_velocity -= kick_friction * v_t
+
+
+func _kick_power() -> float:
+	if not kick_charge:
+		return 1.0
+	var max_angle := absf(deg_to_rad(-swing_angle))
+	if max_angle <= 0.0001:
+		return 1.0
+	var progress := clampf(absf(kick_pivot.rotation) / max_angle, 0.0, 1.0)
+	return lerpf(kick_charge_min, 1.0, progress)
+
+
+func _shoe_overlaps(ball: Node2D) -> bool:
+	var xf := shoe_polygon.global_transform
+	var local := xf.affine_inverse() * ball.global_position
+	var sx := xf.get_scale().x
+	var radius := _ball_radius(ball) / maxf(absf(sx), 0.0001)
+	var pts := shoe_polygon.polygon
+	if Geometry2D.is_point_in_polygon(local, pts):
+		return true
+	var count := pts.size()
+	for i in count:
+		var a := pts[i]
+		var b := pts[(i + 1) % count]
+		if Geometry2D.get_closest_point_to_segment(local, a, b).distance_squared_to(local) <= radius * radius:
+			return true
+	return false
+
+
+func _ball_radius(ball: Node2D) -> float:
+	var cs := ball.get_node_or_null(\"hitbox\") as CollisionShape2D
+	if cs and cs.shape is CircleShape2D:
+		return (cs.shape as CircleShape2D).radius
+	return 16.0
+
+
+func _shoe_contact_normal(point: Vector2) -> Vector2:
+	var xf := shoe_polygon.global_transform
+	var local := xf.affine_inverse() * point
+	var pts := shoe_polygon.polygon
+	var count := pts.size()
+	var best := Vector2.ZERO
+	var best_dist := INF
+	for i in count:
+		var a := pts[i]
+		var b := pts[(i + 1) % count]
+		var p := Geometry2D.get_closest_point_to_segment(local, a, b)
+		var d := local.distance_squared_to(p)
+		if d < best_dist:
+			best_dist = d
+			best = p
+	var dir := local - best
+	if Geometry2D.is_point_in_polygon(local, pts):
+		dir = -dir
+	if dir.length_squared() < 0.0001:
+		return Vector2.ZERO
+	return xf.basis_xform(dir).normalized()
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_h2yge"]
+size = Vector2(1162, 20)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1bvp3"]
+size = Vector2(160, 537)
+
+[sub_resource type="GDScript" id="GDScript_7mycd"]
+resource_name = "ballPhysics"
+script/source = "extends RigidBody2D
+
+# Inspector Constants
+@export var bounce_coefficient: float = 0.75       # Elasticity (0 = none, 1 = perfect)
+@export var bounce_speed_threshold: float = 150.0  # Bounces slower than this are weak
+@export var min_bounce_impulse: float = 50.0       # Upward kick for weak floor bounces
+@export var wall_impulse: float = 10.0             # Small reaction push off walls
+
+var _touching_floor: bool = false
+var _touching_wall: bool = false
+
+
+func _ready() -> void:
+	# Contact tracking is required to read collision normals in _integrate_forces
+	contact_monitor = true
+	max_contacts_reported = 8
+	can_sleep = false  # Keeps the ball from freezing when it slows down
+
+	# Normal 0.75 elasticity bounce
+	var mat := PhysicsMaterial.new()
+	mat.bounce = bounce_coefficient
+	mat.friction = 0.2
+	physics_material_override = mat
+
+
+func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
+	# smol newton-style push away from a wall, once per wall touch.
+	var wall_push := _wall_push(state)
+	if wall_push != Vector2.ZERO and not _touching_wall:
+		state.apply_central_impulse(wall_push * wall_impulse)
+	_touching_wall = wall_push != Vector2.ZERO
+
+	# Floor bounce only on a clean landing, never while squeezed between bodies.
+	var on_floor := _floor_normal(state) != Vector2.ZERO
+	if on_floor and not _touching_floor:
+		var clean := state.get_contact_count() <= 2 and not _has_downward_contact(state)
+		if clean and state.linear_velocity.length() < bounce_speed_threshold:
+			state.apply_central_impulse(Vector2(0.0, -min_bounce_impulse))
+	_touching_floor = on_floor
+
+
+func _floor_normal(state: PhysicsDirectBodyState2D) -> Vector2:
+	var center: Vector2 = state.center_of_mass
+	for i in state.get_contact_count():
+		if not _is_boundary(state, i):
+			continue
+		var normal: Vector2 = state.get_contact_local_normal(i)
+		var point: Vector2 = state.get_contact_local_position(i)
+		# A floor contact sits below the ball center and has a vertical normal
+		if absf(normal.y) > 0.7 and point.y > center.y:
+			return normal
+	return Vector2.ZERO
+
+
+func _wall_push(state: PhysicsDirectBodyState2D) -> Vector2:
+	var center: Vector2 = state.center_of_mass
+	var horizontal := Vector2.ZERO
+	for i in state.get_contact_count():
+		if not _is_boundary(state, i):
+			continue
+		var normal: Vector2 = state.get_contact_local_normal(i)
+		var point: Vector2 = state.get_contact_local_position(i)
+		# Vertical wall (left/right) takes priority and pushes away from whichever side.
+		if absf(normal.x) > 0.7:
+			return Vector2(-signf(point.x - center.x), 0.0)
+		# Horizontal wall (floor/roof) fallback: remember it in case no vertical wall.
+		if absf(normal.y) > 0.7 and horizontal == Vector2.ZERO:
+			horizontal = Vector2(0.0, -signf(point.y - center.y))
+	return horizontal
+
+
+func _is_boundary(state: PhysicsDirectBodyState2D, contact_idx: int) -> bool:
+	# Only the arena boundary (a StaticBody2D) drives bounce/wall behaviour.
+	return state.get_contact_collider_object(contact_idx) is StaticBody2D
+
+
+func _has_downward_contact(state: PhysicsDirectBodyState2D) -> bool:
+	for i in state.get_contact_count():
+		if state.get_contact_local_normal(i).y > 0.7:
+			return true
+	return false
+"
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_lquwl"]
+radius = 15.0
+
+[node name="Node" type="Node" unique_id=418021958]
+
+[node name="player" type="CharacterBody2D" parent="." unique_id=970481442]
+platform_on_leave = 2
+platform_floor_layers = 0
+script = SubResource("GDScript_1bvp3")
+
+[node name="head" type="Sprite2D" parent="player" unique_id=2073617363]
+z_index = 1
+position = Vector2(1003.00006, 581.99994)
+scale = Vector2(0.7933835, 0.82031304)
+texture = ExtResource("1_1bvp3")
+centered = false
+
+[node name="kickPivot" type="Node2D" parent="player" unique_id=501234001]
+position = Vector2(1104.553, 634.5)
+
+[node name="shoe" type="Sprite2D" parent="player/kickPivot" unique_id=607412949]
+z_index = 1
+position = Vector2(0.447, 39.5)
+scale = Vector2(0.61328095, 0.61328095)
+texture = ExtResource("2_lquwl")
+
+[node name="shoeArea" type="Area2D" parent="player/kickPivot" unique_id=501234002]
+collision_layer = 0
+
+[node name="shape" type="CollisionPolygon2D" parent="player/kickPivot/shoeArea" unique_id=501234003]
+position = Vector2(0.447, 39.5)
+scale = Vector2(0.61328095, 0.61328095)
+polygon = PackedVector2Array(-21, -32, -21, -30.5, -63.300003, -16, -66.7, -16, -71.7, -12, -74, -12, -82, -1, -84.4, -1, -83, 6.4000015, -83, 10, -75, 16, -75, 18, 17.399994, 18, 20.399994, 10, 22.100006, 10, 20, -23.099998, 20, -28.099998, 17, -30.099998, 17, -32)
+
+[node name="shoehitbox" type="CollisionPolygon2D" parent="player/kickPivot" unique_id=501234004]
+position = Vector2(0.447, 39.5)
+scale = Vector2(0.61328095, 0.61328095)
+polygon = PackedVector2Array(-21, -32, -21, -30.5, -63.300003, -16, -66.7, -16, -71.7, -12, -74, -12, -82, -1, -84.4, -1, -83, 6.4000015, -83, 10, -75, 16, -75, 18, 17.399994, 18, 20.399994, 10, 22.100006, 10, 20, -23.099998, 20, -28.099998, 17, -30.099998, 17, -32)
+
+[node name="headhitbox" type="CollisionPolygon2D" parent="player" unique_id=797480227]
+position = Vector2(1003.00006, 581.99994)
+scale = Vector2(0.7933835, 0.82031304)
+polygon = PackedVector2Array(110, 16.4, 110, 18, 100.6, 18, 96.6, 23, 93.5, 23, 95, 32.5, 95, 38.1, 87.3, 51, 84.6, 51, 89, 83.4, 89, 86.8, 107.9, 88, 109, 88, 109, 93.5, 115, 94.5, 115, 96.3, 139.3, 94, 142.4, 94, 146.4, 89, 148.5, 89, 155.4, 53, 157, 53, 157, 42, 145, 25, 145, 22.5)
+
+[node name="arena" type="Node2D" parent="." unique_id=824442680]
+position = Vector2(48, 33)
+
+[node name="court" type="Node2D" parent="arena" unique_id=1877835323]
+position = Vector2(-48, -33)
+
+[node name="sprite" type="Sprite2D" parent="arena/court" unique_id=1726034426]
+light_mask = 4
+position = Vector2(960, 655)
+scale = Vector2(1.8307639, 1.8307639)
+texture = ExtResource("3_1bvp3")
+
+[node name="boundaryCollisions" type="StaticBody2D" parent="arena/court" unique_id=1853401199]
+
+[node name="roof" type="CollisionShape2D" parent="arena/court/boundaryCollisions" unique_id=1408850624]
+visible = false
+position = Vector2(954, 210)
+shape = SubResource("RectangleShape2D_h2yge")
+
+[node name="floor" type="CollisionShape2D" parent="arena/court/boundaryCollisions" unique_id=1668836606]
+visible = false
+position = Vector2(954, 750)
+shape = SubResource("RectangleShape2D_h2yge")
+
+[node name="left" type="CollisionShape2D" parent="arena/court/boundaryCollisions" unique_id=511805664]
+visible = false
+position = Vector2(366, 468)
+shape = SubResource("RectangleShape2D_1bvp3")
+
+[node name="right" type="CollisionShape2D" parent="arena/court/boundaryCollisions" unique_id=845639945]
+visible = false
+texture_filter = 1
+position = Vector2(1556, 472)
+shape = SubResource("RectangleShape2D_1bvp3")
+
+[node name="ball" type="RigidBody2D" parent="." unique_id=1628818008 groups=["ball"]]
+collision_layer = 2
+collision_mask = 1
+visibility_layer = 3
+position = Vector2(961, 623)
+mass = 1000.0
+script = SubResource("GDScript_7mycd")
+metadata/_edit_group_ = true
+
+[node name="hitbox" type="CollisionShape2D" parent="ball" unique_id=1377926982]
+shape = SubResource("CircleShape2D_lquwl")
+
+[node name="sprite" type="Sprite2D" parent="ball" unique_id=590348717]
+visibility_layer = 3
+scale = Vector2(0.23875378, 0.23875378)
+texture = ExtResource("3_h2yge")
+metadata/_edit_group_ = true
+
+[node name="In-Game Camera" type="Camera2D" parent="." unique_id=283850260]
+offset = Vector2(960, 540)
