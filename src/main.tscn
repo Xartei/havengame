@@ -7,6 +7,7 @@
 [ext_resource type="Texture2D" uid="uid://cqi8aeapl1dtk" path="res://assets/moving/hoops.png" id="4_lquwl"]
 [ext_resource type="Script" uid="uid://ccuu1rk6lee0n" path="res://src/score.gd" id="5_score"]
 [ext_resource type="Script" uid="uid://gsfnlsjretws" path="res://src/hud.gd" id="6_hud"]
+[ext_resource type="Texture2D" uid="uid://buiefy6uu3rb7" path="res://assets/bg/bg.png" id="6_mgm53"]
 [ext_resource type="Texture2D" uid="uid://b27frcn4uhc4a" path="res://assets/moving/evillebron.png" id="8_kf8lf"]
 [ext_resource type="Texture2D" uid="uid://bwetno5l03813" path="res://assets/moving/evilshoe.png" id="9_mgm53"]
 
@@ -585,6 +586,11 @@ shape = SubResource("RectangleShape2D_rlaii")
 position = Vector2(-43.75, 11.5)
 shape = SubResource("RectangleShape2D_5mrjc")
 
+[node name="bg" type="Sprite2D" parent="arena" unique_id=830715573]
+z_index = -6
+position = Vector2(910, 505)
+texture = ExtResource("6_mgm53")
+
 [node name="ball" type="RigidBody2D" parent="." unique_id=1628818008 groups=["ball"]]
 visibility_layer = 3
 position = Vector2(960, 623)
@@ -611,6 +617,8 @@ position = Vector2(461, 544)
 shape = SubResource("RectangleShape2D_lquwl")
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=900000105]
+offset = Vector2(420, 80)
+transform = Transform2D(1, 0, 0, 1, 420, 80)
 
 [node name="scoreboard" type="Label" parent="HUD" unique_id=900000106]
 offset_left = 24.0
