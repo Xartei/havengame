@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://bbokbkfj5nhxl" path="res://assets/moving/shoe.png" id="2_lquwl"]
 [ext_resource type="Texture2D" uid="uid://c20sn8tp6hw8d" path="res://assets/moving/court.png" id="3_1bvp3"]
 [ext_resource type="Texture2D" uid="uid://570ya5s4ybdt" path="res://assets/moving/ball.png" id="3_h2yge"]
+[ext_resource type="Texture2D" uid="uid://cqi8aeapl1dtk" path="res://assets/moving/hoops.png" id="4_lquwl"]
 
 [sub_resource type="GDScript" id="GDScript_1bvp3"]
 resource_name = "playerMovement"
@@ -35,7 +36,7 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity += Vector2.DOWN * gravity * delta
 		if Input.is_action_pressed(\"up\"):
-			gravity = base_gravity * 0.2
+			gravity = base_gravity * 0.3 # float :v
 		elif Input.is_action_pressed(\"down\"):
 			gravity = base_gravity * 2 # yeah fall faster with down i always hated you couldnt do this in games loñ
 		else:
@@ -155,10 +156,13 @@ func _shoe_contact_normal(point: Vector2) -> Vector2:
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_h2yge"]
-size = Vector2(1162, 20)
+size = Vector2(1162, 138)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1bvp3"]
-size = Vector2(160, 537)
+size = Vector2(207, 537)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lquwl"]
+size = Vector2(158, 20)
 
 [sub_resource type="GDScript" id="GDScript_7mycd"]
 resource_name = "ballPhysics"
@@ -251,9 +255,11 @@ radius = 15.0
 [node name="Node" type="Node" unique_id=418021958]
 
 [node name="player" type="CharacterBody2D" parent="." unique_id=970481442]
+collision_layer = 3
 platform_on_leave = 2
 platform_floor_layers = 0
 script = SubResource("GDScript_1bvp3")
+metadata/_edit_group_ = true
 
 [node name="head" type="Sprite2D" parent="player" unique_id=2073617363]
 z_index = 1
@@ -272,6 +278,7 @@ scale = Vector2(0.61328095, 0.61328095)
 texture = ExtResource("2_lquwl")
 
 [node name="shoeArea" type="Area2D" parent="player/kickPivot" unique_id=501234002]
+position = Vector2(-1, 0)
 collision_layer = 0
 
 [node name="shape" type="CollisionPolygon2D" parent="player/kickPivot/shoeArea" unique_id=501234003]
@@ -297,38 +304,82 @@ position = Vector2(-48, -33)
 
 [node name="sprite" type="Sprite2D" parent="arena/court" unique_id=1726034426]
 light_mask = 4
-position = Vector2(960, 655)
-scale = Vector2(1.8307639, 1.8307639)
+position = Vector2(965, 541.99994)
+scale = Vector2(0.99991167, 0.99991167)
 texture = ExtResource("3_1bvp3")
 
 [node name="boundaryCollisions" type="StaticBody2D" parent="arena/court" unique_id=1853401199]
+collision_layer = 3
+collision_mask = 0
 
 [node name="roof" type="CollisionShape2D" parent="arena/court/boundaryCollisions" unique_id=1408850624]
-visible = false
-position = Vector2(954, 210)
+position = Vector2(961, 144)
 shape = SubResource("RectangleShape2D_h2yge")
 
 [node name="floor" type="CollisionShape2D" parent="arena/court/boundaryCollisions" unique_id=1668836606]
-visible = false
-position = Vector2(954, 750)
+position = Vector2(955, 809)
 shape = SubResource("RectangleShape2D_h2yge")
 
 [node name="left" type="CollisionShape2D" parent="arena/court/boundaryCollisions" unique_id=511805664]
-visible = false
-position = Vector2(366, 468)
+position = Vector2(377, 476)
 shape = SubResource("RectangleShape2D_1bvp3")
 
 [node name="right" type="CollisionShape2D" parent="arena/court/boundaryCollisions" unique_id=845639945]
-visible = false
 texture_filter = 1
-position = Vector2(1556, 472)
+position = Vector2(1516, 482)
 shape = SubResource("RectangleShape2D_1bvp3")
 
-[node name="ball" type="RigidBody2D" parent="." unique_id=1628818008 groups=["ball"]]
+[node name="hoops" type="Node2D" parent="arena" unique_id=416335294]
+position = Vector2(501, 545)
+
+[node name="sprite" type="Sprite2D" parent="arena/hoops" unique_id=409057433]
+position = Vector2(415, -27)
+texture = ExtResource("4_lquwl")
+
+[node name="left screen" type="StaticBody2D" parent="arena/hoops" unique_id=45278458]
+position = Vector2(556, 96)
+scale = Vector2(0.61328095, 0.61328095)
+collision_layer = 3
+collision_mask = 0
+
+[node name="screen" type="CollisionPolygon2D" parent="arena/hoops/left screen" unique_id=63778654]
+position = Vector2(-906.59924, -156.5351)
+scale = Vector2(1.6305741, 1.6305741)
+polygon = PackedVector2Array(9, 14, -22, 37, -25, -58, 4, -79)
+
+[node name="rightscreen" type="StaticBody2D" parent="arena/hoops" unique_id=521128433]
+position = Vector2(556, 96)
+scale = Vector2(0.61328095, 0.61328095)
+collision_layer = 3
+collision_mask = 0
+
+[node name="screen" type="CollisionPolygon2D" parent="arena/hoops/rightscreen" unique_id=1174786879]
+position = Vector2(-1464.1028, -154.90454)
+scale = Vector2(2.3439503, 1.6305741)
+polygon = PackedVector2Array(810.3696, 33, 788.8043, 7, 790.89136, -82, 811.76086, -59, 811.0652, -8)
+
+[node name="rightpole" type="StaticBody2D" parent="arena/hoops" unique_id=208323859]
+position = Vector2(-1, 0)
 collision_layer = 2
-collision_mask = 1
+collision_mask = 2
+
+[node name="pole" type="CollisionShape2D" parent="arena/hoops/rightpole" unique_id=1829500989]
+position = Vector2(897, 11)
+shape = SubResource("RectangleShape2D_lquwl")
+
+[node name="leftpole" type="StaticBody2D" parent="arena/hoops" unique_id=1447261400]
+collision_layer = 2
+collision_mask = 2
+
+[node name="pole" type="CollisionShape2D" parent="arena/hoops/leftpole" unique_id=587805069]
+position = Vector2(1794, 22)
+shape = SubResource("RectangleShape2D_lquwl")
+
+[node name="ball" type="RigidBody2D" parent="." unique_id=1628818008 groups=["ball"]]
 visibility_layer = 3
-position = Vector2(961, 623)
+position = Vector2(960, 623)
+collision_layer = 2
+collision_mask = 2
 mass = 1000.0
 script = SubResource("GDScript_7mycd")
 metadata/_edit_group_ = true
@@ -344,3 +395,7 @@ metadata/_edit_group_ = true
 
 [node name="In-Game Camera" type="Camera2D" parent="." unique_id=283850260]
 offset = Vector2(960, 540)
+
+[node name="pole" type="CollisionShape2D" parent="." unique_id=1740851300]
+position = Vector2(454, 586)
+shape = SubResource("RectangleShape2D_lquwl")
